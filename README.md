@@ -1,52 +1,65 @@
-# elrrexternalservices
-Services for integrating with external interfaces (LRS, CaSS, ECC etc)
+# ELRR External Services
+The External Services component of ELRR interacts with external datasources to get data for updates to ELRR Data. Currently the only implemented integration is with an LRS, so it acts as a proxy for LRS read calls.
 
-There are database and kafka dependencies, but there's a [repo with a docker-compose](https://github.com/US-ELRR/elrrdockercompose/) that resolves them locally.
+Typically this proxy is called by [Datasync](https://github.com/adlnet/elrr-datasync) which is a polling process that retrieves the data for processing by ELRR.
 
-[Setup elrrdatasync first](https://github.com/US-ELRR/elrrdatasync/)
-
-# Dependencies
-- [Java JDK 1.8](https://www.oracle.com/java/technologies/downloads/)
-- [git](https://git-scm.com/downloads)
+## Dev Requirements
+- [Java JDK 17](https://www.oracle.com/java/technologies/downloads/) or later
 - [Maven](https://maven.apache.org/)
-- [Docker](https://www.docker.com/products/docker-desktop/)
-- [PostgreSQL](https://www.postgresql.org/download/)
 
-# Tools
-- SQL client or Terminal
-- [Postman](https://www.postman.com/downloads/)
-- [Eclipse](https://www.eclipse.org/downloads/packages/) or other IDE
+## Tools
+- REST Client (such as [Postman](https://www.postman.com/downloads/))
+- [Docker](https://www.docker.com/products/docker-desktop/) if working with containers
 
-# Build the application
-- mvn clean install
+## Running the Application
 
-# Run Postman to populate lrs-db
-1. Postman
-   a. POST http://localhost:8083/xapi/statements
-   b. Headers
-      1. key = X-Experience-API-Version
-      2. value = 1.0.3
-   c. Body raw, JSON
-[
-  {"actor":{"name":"John Doe","mbox":"mailto:JohnDoe@gmailcom"},"verb":{"id":"https://adlnet.gov/expapi/verbs/achieved","display":{"en-us":"Achieved"}},"object":{"id":"https://w3id.org/xapi/credential/GIAC%20Security%20Essentials%20Certification%20%28GSEC%29","objectType":"Activity","definition":{"name":{"en-us":"GIAC Security Essentials Certification (GSEC)"},"type":"https://yetanalytics.com/deloitte-edlm/demo-profile/certificate"}},"stored":"2024-09-20T21:37:23.835000000Z","authority":{"account":{"homePage":"http://example.org","name":"0192115b-03d0-849f-8a65-f217ffbe2207"},"objectType":"Agent"},"id":"d9f1328b-bcc2-4b9c-b954-03cb88a240c8","timestamp":"2024-09-20T21:37:23.835000000Z","version":"1.0.0"}
-]
+### 1. Build the application
+`mvn clean install`
 
-# Deploying the application to Docker 
-The easiest way to deploy the sample application to Docker is to follow below steps:
+This will test, compile, and create a jar for the app in `target/`
 
-1. mvn clean install -Dmaven.test.skip=false
+### 2a. Running the application using the Spring Boot Maven plugin: 
+This is the recommended and easiest way to run a local version of the application
 
-2. mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
+- `mvn clean install`
+- `mvn spring-boot:run -D spring-boot.run.profiles=local -e`  (Linux/MacOS)
+or
+`mvn spring-boot:run -D"spring-boot.run.profiles"=local -e` (Windows)
 
-3. docker build --build-arg JAR_FILE="./target/elrrexternalservices-0.0.1-SNAPSHOT.jar" --file Dockerfile -t <docker_hub>/newrepository:elrrexternalservices-dck-img .
 
-4. docker run -p 8088:8088 -t <docker_hub>/newrepository:elrrexternalservices-dck-img
+Note that profile is being set to `local`, this tells spring to leverage `src/main/resources/application-local.properties` which allows you to easily change system settings for your local run. See **Properties and Environment Variables** for details.
 
-# Running the application using the Spring Boot Maven plugin: 
-- mvn clean
-- mvn spring-boot:run -D"spring-boot.run.profiles"=local -e (Windows)
-- mvn spring-boot:run -D spring-boot.run.profiles=local -e  (Linux)
-- Ctrl+C to end --> Terminate batch job = Y
+### 2b. Running the application uising the Jar file
+This is closer to how the application will run in a Docker Container or in production.
 
-# Optional step 
-- docker push <docker_hub>/newrepository:elrrexternalservices-dck-img
+- `cd target/`
+- `java -jar elrrexternalservices-_.jar` (you must fill in the version number that matches the current target build)
+
+To configure launch for this method you will set ENV variables instead of tweaking `application-local` as the jar will default to `application.properties` which accepts ENV overrides.
+
+## Properties and Environment Variables
+Configuration variables for running the application
+
+| Property | ENV Variable | Default | Description |
+| -------- | -------- | -------- | -------- |
+| lrs.url  | ELRR_LRS_URL | - | URL to access LRS. Should include host, port, protocol and path (e.g. `https://lrs.domain.org/xapi`)
+| lrs.username  | ELRR_LRS_USERNAME | - | LRS API Key
+| lrs.password  | ELRR_LRS_PASSWORD | - | LRS API Secret
+| server.port  | ELRR_PORT | 8088 | Port to deploy on
+| check.http.header  | ELRR_LRS_URL | false | Strict header checking
+| jasypt.encryptor.password  | JASYPT_ENCRYPTOR_PASSWORD | - | Needed only if using Jasypt `ENC(-)` cyphertext for any of the LRS details above. This is the shared secret for decryption of the value.
+
+
+## Running Locally With Dependencies and Testing
+
+### System Dependencies
+
+External Services does not depend on other components of ELRR (they depend on it) but it does need a running LRS to properly serve as a proxy. Cloning and running the [ELRR Local Docker Compose](https://github.com/adlnet/elrr-dockercompose) will provide an LRS with credentials matching the current defaults in `application-local.properties`. If you start up this compose, and then run using Spring Boot as detailed above, you should have a running version with a n active connection to the LRS.
+
+### Testing
+
+If you did the prior step, you should be able to visit the following URL and have it display some data from the LRS:
+
+`http://localhost:8088/api/lrsdata?lastReadDate=1970-01-01T00:00:00Z&maxStatements=1000`
+
+If you see an empty json array (`[]`) that just means the LRS is empty, but regardless the system is up and running. If you put some statements in the LRS from the docker compose it should return them at this address.
