@@ -23,7 +23,6 @@
         <sonar.dynamicAnalysis>resuseReports</sonar.dynamicAnalysis>
         <sonar.jacoco.reportPath>${project.basedir}/../target/jacoco.exec</sonar.jacoco.reportPath>
         <sonar.language>java</sonar.language>
-        <tomcat.version>10.1.42</tomcat.version>
         <spring-security.version>6.3.10</spring-security.version>
         <spring-framework.version>6.2.12</spring-framework.version>
     </properties>
